@@ -1,19 +1,26 @@
-const { Resend } = require('resend');
+const nodemailer = require('nodemailer');
 
 class EmailService {
   constructor() {
-    this.resend = new Resend(process.env.RESEND_API_KEY);
+    this.transporter = nodemailer.createTransport({
+      host: 'smtp.gmail.com',
+      port: 587,
+      secure: false, // Use TLS
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS,
+      },
+    });
   }
 
   async sendOTP(email, otp) {
-  if (!email || !otp) {
-    console.error("Email and OTP are required to send an email.");
-    return;
-  }
+    if (!email || !otp) {
+      console.error("Email and OTP are required to send an email.");
+      return;
+    }
 
-  try {
-    const info = await this.resend.emails.send({
-      from: process.env.EMAIL_FROM,
+    const mailOptions = {
+      from: process.env.EMAIL_USER,
       to: email,
       subject: "This is from GSB: Your OTP",
       text: `Your OTP is: ${otp}`,
@@ -22,19 +29,15 @@ class EmailService {
              <p style="font-size: 16px;">Your OTP is: <strong>${otp}</strong></p>
              <p style="font-size: 14px; color: #888;">Please use this code to complete your verification.</p>
            </div>`,
-    });
+    };
 
-    if (info.error) {
-      console.error("Email failed to send:", info.error);
-      throw new Error(info.error.message);
+    try {
+      const info = await this.transporter.sendMail(mailOptions);
+      console.log("Email sent successfully: ", info.response);
+    } catch (error) {
+      console.error("Error sending email: ", error);
     }
-
-    console.log("Email sent successfully:", info.data);
-  } catch (error) {
-    console.error("Error sending email:", error);
-    throw error; // let the caller know it failed, e.g. so it doesn't tell the user "OTP sent" falsely
   }
-}
 }
 
 module.exports = EmailService;
