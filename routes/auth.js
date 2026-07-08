@@ -22,39 +22,27 @@ const jwtSecret = process.env.JWT_SECRET;
 // Route to handle sending OTP
 router.post("/phone-login", async (req, res) => {
   const { email } = req.body;
-  console.log(email);
   try {
-    // Find or create user by phone number
-
     const validateEmail = validator.validate(email);
-
     if (!validateEmail) {
-      return res
-        .status(400)
-        .send({ success: false, message: "Invalid Email!" });
+      return res.status(400).send({ success: false, message: "Invalid Email!" });
     }
 
     let user = await User.findOne({ email });
     if (!user) {
-      console.log("User not found, creating new user...");
       user = new User({ email, verified: false, firstTimeLogin: true });
       await user.save();
     }
 
-    // Send OTP to the user's phone number
     const sixDigitOtp = generateOtP();
-
     const existingOtp = await OTP.findOne({ email });
-
-    let newOtp;
 
     if (existingOtp) {
       existingOtp.otp = sixDigitOtp;
       existingOtp.willExpireAt = new Date(Date.now() + 600000);
-
       await existingOtp.save();
     } else {
-      newOtp = await OTP.create({
+      const newOtp = await OTP.create({
         email,
         otp: sixDigitOtp,
         willExpireAt: new Date(Date.now() + 600000),
@@ -66,8 +54,17 @@ router.post("/phone-login", async (req, res) => {
         });
       }
     }
+
     const emailService = new EmailService();
-    emailService.sendOTP(email, sixDigitOtp);
+    try {
+      await emailService.sendOTP(email, sixDigitOtp);
+    } catch (emailError) {
+      console.error("Failed to send OTP email:", emailError);
+      return res.status(500).send({
+        success: false,
+        message: "Failed to send OTP email. Please try again.",
+      });
+    }
 
     res.status(200).send({ success: true, message: "OTP sent to your mail." });
   } catch (error) {
